@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.concurrent.ListenableFuture;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.AsyncRestTemplate;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.context.annotation.SessionScope;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
@@ -26,10 +28,15 @@ public class DemoApplication {
     private RestTemplate restTemplate = new RestTemplate();
     private AsyncRestTemplate asyncRestTemplate = new AsyncRestTemplate();
     private static final Logger log = LoggerFactory.getLogger(DemoApplication.class);
-    private ExecutorService executor = Executors.newFixedThreadPool(2);
     private ObjectMapper mapper = new ObjectMapper();
     private String BaseURI = "http://localhost:5000";
     private String RequestURI = "/WeatherForecast";
+
+    @Bean
+    @SessionScope
+    public ExecutorService executor() {
+        return Executors.newFixedThreadPool(2);
+    }
 
     public static void main(String[] args) {
         SpringApplication.run(DemoApplication.class, args);
@@ -40,7 +47,7 @@ public class DemoApplication {
     public String getWeather() throws Exception {
         final long start = System.currentTimeMillis();
 
-        Future<List<WeatherForecast>> forecasts = getWeatherAsyncRestClient();
+        Future<List<WeatherForecast>> forecasts = getWeatherAsyncWebClient();
 
         while (!forecasts.isDone()) {
             System.out.println("Calculating...");
@@ -55,7 +62,7 @@ public class DemoApplication {
     }
 
     public Future<List<WeatherForecast>> getWeatherSyncRestClient() { //not cancelling the request
-        return executor.submit(() -> {
+        return executor().submit(() -> {
             ResponseEntity<Object[]> responseEntity =
                     restTemplate.getForEntity(BaseURI + RequestURI, Object[].class);
 
@@ -69,7 +76,7 @@ public class DemoApplication {
         });
     }
     public Future<List<WeatherForecast>> getWeatherAsyncRestClient() { //not cancelling the request
-        return executor.submit(() -> {
+        return executor().submit(() -> {
             ListenableFuture<ResponseEntity<Object[]>> responseEntity =
                     asyncRestTemplate.getForEntity(BaseURI + RequestURI, Object[].class);
 
@@ -84,7 +91,7 @@ public class DemoApplication {
     }
 
     public Future<List<WeatherForecast>> getWeatherAsyncWebClient() { //Works!
-        return executor.submit(() -> {
+        return executor().submit(() -> {
 
             WebClient client = WebClient.create(BaseURI);
             Mono<Object[]> response = client.get().uri(RequestURI)
